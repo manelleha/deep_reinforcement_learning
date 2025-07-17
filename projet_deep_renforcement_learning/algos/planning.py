@@ -1,63 +1,74 @@
-
-##======================================== DYNA-Q =============================================================
-
-import numpy as np
 import random
 from collections import defaultdict
+import pandas as pd
 
+from algos.politique import politique_epsilon_greedy  # ε-greedy(S, Q)
+
+
+############## DYNA-Q===============
 def dyna_q(
-    nb_etats,
-    nb_actions,
-    réinitialiser,
+    reinitialiser,
     faire_un_pas,
-    action_aléatoire,
+    obtenir_actions,
     episodes=100,
     alpha=0.1,
-    gamma=0.95,
+    gamma=0.99,
     epsilon=0.1,
-    etapes_planification=10,
-    debug=False
+    planning_steps=10,
+    etats_suivis=None,
+    verbose=False
 ):
-    Q = np.zeros((nb_etats, nb_actions))
-    modele = defaultdict(lambda: (0, 0))
-    historiques = set()
+    Q = defaultdict(float)    # Q(s, a)
+    model = dict()            # Model(s, a) = (R, S')
+    suivi_q = []
 
-    for ep in range(episodes):
-        état = réinitialiser()
+    for episode in range(episodes):
+
+        S = reinitialiser()   # (a) S ← état actuel
         terminé = False
-        if debug:
-            print(f"\n--- Épisode {ep+1} ---")
 
         while not terminé:
-            # Choix action
-            if random.random() < epsilon:
-                action = action_aléatoire()
-                source = "exploration"
+            # (b) A ← ε-greedy(S, Q)
+            actions = obtenir_actions(S)
+            A = politique_epsilon_greedy(Q, S, actions, epsilon, verbose)
+
+            # (c) Take action A; observe reward and next state
+            S_prime, R, terminé = faire_un_pas(A)
+
+            # (d) Q-learning update
+            if terminé:
+                Q[(S, A)] += alpha * (R - Q[(S, A)])
             else:
-                action = np.argmax(Q[état])
-                source = "exploitation"
+                Q[(S, A)] += alpha * (
+                    R + gamma * max(Q[(S_prime, a)] for a in obtenir_actions(S_prime)) - Q[(S, A)]
+                )
 
-            état_suiv, récompense, terminé = faire_un_pas(action)
+            # (e) Model update
+            model[(S, A)] = (R, S_prime)
 
-            # Mise à jour réelle
-            ancien_q = Q[état, action]
-            Q[état, action] += alpha * (récompense + gamma * np.max(Q[état_suiv]) - Q[état, action])
+            # (f) Planning step
+            for _ in range(planning_steps):
+                S_sim, A_sim = random.choice(list(model.keys()))
+                R_sim, S_prime_sim = model[(S_sim, A_sim)]
 
-            modele[(état, action)] = (état_suiv, récompense)
-            historiques.add((état, action))
+                if obtenir_actions(S_prime_sim):
+                    Q[(S_sim, A_sim)] += alpha * (
+                        R_sim + gamma * max(Q[(S_prime_sim, a)] for a in obtenir_actions(S_prime_sim)) - Q[(S_sim, A_sim)]
+                    )
+                else:
+                    Q[(S_sim, A_sim)] += alpha * (R_sim - Q[(S_sim, A_sim)])
 
-            if debug:
-                print(f"État: {état}, Action: {action} ({source}), État suivant: {état_suiv}, Récompense: {récompense}")
-                print(f"  Ancien Q[{état},{action}] = {ancien_q:.3f}, Nouveau = {Q[état, action]:.3f}")
+            S = S_prime
 
-            # Hallucinations (planification)
-            for _ in range(etapes_planification):
-                e, a = random.choice(list(historiques))
-                e_suiv, r = modele[(e, a)]
-                Q[e, a] += alpha * (r + gamma * np.max(Q[e_suiv]) - Q[e, a])
+        # Enregistrement du suivi
+        if etats_suivis:
+            snapshot = {
+                f"{e}-{a}": Q[(e, a)]
+                for e in etats_suivis
+                for a in obtenir_actions(e)
+            }
+            snapshot["épisode"] = episode
+            suivi_q.append(snapshot)
 
-            état = état_suiv
-
-    return Q
-
-
+    df_q = pd.DataFrame(suivi_q)
+    return Q, df_q
