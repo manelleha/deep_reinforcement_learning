@@ -1,38 +1,99 @@
 import random
 
+# ─────────────────────────────────────────────
 # Définir les actions possibles
+# ─────────────────────────────────────────────
 actions = ["rock", "paper", "scissors"]
+action_to_index = {a: i for i, a in enumerate(actions)}
 
-# Initialiser l’état (round actuel, action agent au round 1)
+# ─────────────────────────────────────────────
+# Variable globale pour maintenir l'état
+# ─────────────────────────────────────────────
+current_state = None
+
+# ─────────────────────────────────────────────
+# Initialiser l'état : (round, action_1 de l'agent)
+# ─────────────────────────────────────────────
 def reinitialiser():
-    return (0, None)  # round 0, pas encore d'action passée
+    global current_state
+    current_state = (0, None)
+    return current_state
 
-# Déterminer le résultat d'un round
+# ─────────────────────────────────────────────
+# Fonction utilitaire pour calculer le score
+# ─────────────────────────────────────────────
 def resultat(agent_action, adversaire_action):
     if agent_action == adversaire_action:
         return 0
-    elif (agent_action == "rock" and adversaire_action == "scissors") or \
-         (agent_action == "paper" and adversaire_action == "rock") or \
+    elif (agent_action == "rock"     and adversaire_action == "scissors") or \
+         (agent_action == "paper"    and adversaire_action == "rock") or \
          (agent_action == "scissors" and adversaire_action == "paper"):
         return 1
     else:
         return -1
 
-# Fonction de transition : renvoie (état_suivant, récompense, terminal)
-def faire_un_pas(etat, action_index):
-    round_actuel, action_1 = etat
+# ─────────────────────────────────────────────
+# Fonction de transition adaptée pour SARSA
+# ─────────────────────────────────────────────
+def faire_un_pas(action_index):
+    global current_state
+    
+    if current_state is None:
+        raise ValueError("L'environnement n'a pas été initialisé. Appelez reinitialiser() d'abord.")
+    
+    round_actuel, action_1 = current_state
     action_agent = actions[action_index]
-
+    
     if round_actuel == 0:
+        # Premier round : adversaire joue aléatoirement
         adversaire_action = random.choice(actions)
         reward = resultat(action_agent, adversaire_action)
         prochain_etat = (1, action_agent)
         est_terminal = False
-
+        
+        # Mettre à jour l'état global
+        current_state = prochain_etat
+        
     elif round_actuel == 1:
-        adversaire_action = action_1  # Il copie l’action du round précédent
+        # Deuxième round : adversaire copie l'action précédente de l'agent
+        adversaire_action = action_1
         reward = resultat(action_agent, adversaire_action)
-        prochain_etat = None
+        prochain_etat = None  # État terminal
         est_terminal = True
-
+        
+        # Mettre à jour l'état global
+        current_state = prochain_etat
+        
+    else:
+        raise ValueError(f"Round invalide : {round_actuel}")
+    
     return prochain_etat, reward, est_terminal
+
+# ─────────────────────────────────────────────
+# Fonction pour obtenir les actions possibles
+# ─────────────────────────────────────────────
+def obtenir_actions(etat):
+    """Retourne les actions possibles pour un état donné"""
+    if etat is None:  # État terminal
+        return []
+    
+    round_actuel, _ = etat
+    if round_actuel in [0, 1]:
+        return [0, 1, 2]  # Indices pour rock, paper, scissors
+    else:
+        return []
+
+# ─────────────────────────────────────────────
+# Fonction utilitaire pour afficher l'état
+# ─────────────────────────────────────────────
+def afficher_etat(etat):
+    if etat is None:
+        return "État terminal"
+    
+    round_actuel, action_1 = etat
+    if round_actuel == 0:
+        return f"Round {round_actuel} (début)"
+    elif round_actuel == 1:
+        return f"Round {round_actuel} (action précédente: {action_1})"
+    else:
+        return f"Round {round_actuel} (inconnu)"
