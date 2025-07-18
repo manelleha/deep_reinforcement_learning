@@ -19,11 +19,11 @@ nb_etats = len(etats)
 nb_actions = len(actions)
 
 # État global actuel de l'agent
-etat_actuel = 3
+etat_actuel = len(etats) // 2
 
 def reinitialiser():
     global etat_actuel
-    etat_actuel = 3
+    etat_actuel = len(etats) // 2
     return etat_actuel
 
 def faire_un_pas(action):
