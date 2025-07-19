@@ -97,3 +97,37 @@ def afficher_etat(etat):
         return f"Round {round_actuel} (action précédente: {action_1})"
     else:
         return f"Round {round_actuel} (inconnu)"
+
+
+########################### Pour le dynamique programing =================================
+
+import numpy as np
+
+# ----- constantes -----
+S, A, R = 5, 3, 3
+p = np.zeros((S, A, S, R))
+
+def r_to_idx(r):          # -1→0, 0→1, +1→2
+    return { -1:0, 0:1, 1:2 }[r]
+
+# état 0  (round 0)
+for a_agent in range(3):          # tes 3 coups
+    for adv in range(3):          # rock/paper/scissors 1/3
+        prob = 1/3
+        next_state = 1 + a_agent   # 1,2,3
+        reward = resultat(actions[a_agent], actions[adv])  # -1/0/1
+        p[0, a_agent, next_state, r_to_idx(reward)] += prob
+
+# états 1–3  (round 1)
+for state in [1,2,3]:
+    prev_action = actions[state-1]      # rock/paper/scissors
+    for a_agent in range(3):
+        adv = prev_action               # copie
+        reward = resultat(actions[a_agent], adv)
+        p[state, a_agent, 4, r_to_idx(reward)] = 1.0
+
+# état terminal 4 : déjà 0 partout
+etats           = list(range(5))
+actions_idx     = [0,1,2]
+recompenses     = [-1.0, 0.0, 1.0]
+etats_terminaux = [4]

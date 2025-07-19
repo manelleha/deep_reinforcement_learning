@@ -29,7 +29,7 @@ def charger_resultats_depuis_chemin(dossier):
     Charge les résultats depuis un chemin absolu donné en entrée.
     """
     if not os.path.exists(dossier):
-        print(f"❌ Dossier introuvable : {dossier}")
+        print(f" Dossier introuvable : {dossier}")
         return None, None, None
 
     try:
@@ -44,13 +44,13 @@ def charger_resultats_depuis_chemin(dossier):
         return Q, policy, value_function
 
     except FileNotFoundError as e:
-        print(f"❌ Fichier manquant : {e}")
+        print(f" Fichier manquant : {e}")
         return None, None, None
 
 # Test avec la politique apprise
 def tester_policy_en_console(policy, reinitialiser, faire_un_pas, episodes=10):
     if policy is None:
-        print("❌ Impossible de tester: politique non chargée")
+        print(" Impossible de tester: politique non chargée")
         return
     
     total_gain = 0

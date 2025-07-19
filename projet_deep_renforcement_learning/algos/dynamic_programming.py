@@ -1,72 +1,241 @@
-import nbformat
-from IPython import get_ipython
 import numpy as np
-import time
-from typing import List
-##======================================== Iterative policy evaluation =========================================
+import pandas as pd
+from tqdm import trange
+from collections import defaultdict
 
-#  formule a utiliser : V(s) = \max_a \sum_{s'} P(s'|s,a) [R(s,a,s') + \gamma V(s')]
-# V(s) : valeur de l’état s
-# γ : facteur de discount permet de dire si les gain future son important ou moins important que les gain imediat (ex. 0.9)
-# P(s'|s,a) : probabilité d’aller de s à s' avec l’action a
-# R(s,a,s') : récompense obtenue
-
-def iterative_policy_evaluation(
-    pi: np.ndarray,
-    S: List[int],
-    A: List[int],
-    R: List[float],
-    T: List[int], # terminal states
-    p: np.ndarray,
-    theta: float = 0.00001,
-    gamma: float = 0.9999999,
+def policy_iteration_dp(
+    etats,
+    actions,
+    p,  # Tenseur de probabilités [état, action, état_suivant, récompense_index]
+    recompenses,
+    etats_terminaux,
+    gamma=0.99,
+    theta=0.00001,
+    max_iterations=100,
+    max_eval_iterations=100,
+    verbose=False
 ):
-    V = np.random.random(len(S))
-    V[T] = 0.0
-    iteration = 0
-
-    while True:
-        delta = 0.0
-        print(f"\n Itération {iteration}")
-        for s in S:
-            if s in T:
-                print(f"V({s}) = 0 (état terminal)")
-                continue
-
-            print(f"\n État {s} :")
-            v = V[s]
-            new_v = 0.0
-
-            for a in A:
-                action_prob = pi[s, a]
-                if action_prob == 0:
-                    continue
-
-                print(f"   Action {a} (proba {action_prob}) :")
-                subtotal = 0.0
-                for s_p in S:
-                    for r_index in range(len(R)):
-                        prob = p[s, a, s_p, r_index]
+    
+    
+    # Initialisation
+    V = {s: 0.0 for s in etats}
+    
+    # Politique initiale : première action valide pour chaque état
+    policy = {}
+    for s in etats:
+        actions_valides = [a for a in actions if np.sum(p[s, a]) > 0]
+        policy[s] = actions_valides[0] if actions_valides else actions[0]
+    
+    historique_loss = []
+    historique_V = []
+    
+    if verbose:
+        print(f"🧠 États : {etats}")
+        print(f"🎮 Actions : {actions}")
+        print(f"🏁 États terminaux : {etats_terminaux}")
+        print(f"🔄 Début de Policy Iteration (Dynamic Programming)...")
+    
+    for it in trange(max_iterations, desc="Policy Iteration DP"):
+        
+        # ============== ÉVALUATION DE LA POLITIQUE ====================
+        if verbose:
+            print(f"\n📈 Évaluation de la politique (itération {it+1})")
+            
+        for eval_it in range(max_eval_iterations):
+            delta = 0
+            V_new = V.copy()
+            
+            for s in etats:
+                if s in etats_terminaux:
+                    continue  # Les états terminaux gardent V=0
+                    
+                a = policy[s]
+                v_old = V[s]
+                
+                # Calcul exact avec les probabilités de transition
+                v_new = 0.0
+                for s_next in etats:
+                    for r_idx in range(len(recompenses)):
+                        prob = p[s, a, s_next, r_idx]
                         if prob > 0:
-                            r = R[r_index]
-                            print(f" s’ = {s_p}, r = {r}, V(s’) = {V[s_p]:.4f}, gamma = {gamma}")
-                            subtotal += prob * (r + gamma * V[s_p])
-
-                weighted = action_prob * subtotal
-                print(f" -> Contribution action {a} = {weighted:.6f}")
-                new_v += weighted
-
-            print(f" Mise à jour : V({s}) = {new_v:.6f}")
-            V[s] = new_v
-            delta = max(delta, abs(v - V[s]))
-
-        print(f"\n max(delta) = {delta:.8f}")
-        if delta < theta:
-            print("\n Convergence atteinte.")
+                            reward = recompenses[r_idx]
+                            if s_next in etats_terminaux:
+                                v_new += prob * reward  # Pas de continuation si terminal
+                            else:
+                                v_new += prob * (reward + gamma * V[s_next])
+                
+                V_new[s] = v_new
+                delta = max(delta, abs(v_old - v_new))
+                
+                if verbose:
+                    print(f"🧠 État {s} | 🎮 Action {a} | 📊 V: {v_old:.4f} → {v_new:.4f}")
+            
+            V = V_new
+            
+            if verbose:
+                print(f"📉 Delta max = {delta:.6f}")
+                
+            if delta < theta:
+                if verbose:
+                    print(f"✅ Convergence atteinte en {eval_it+1} itérations d'évaluation")
+                break
+        
+        historique_loss.append(delta)
+        historique_V.append(dict(V))
+        
+        # ============== AMÉLIORATION DE LA POLITIQUE ====================
+        if verbose:
+            print("🎯 Amélioration de la politique...")
+            
+        policy_stable = True
+        
+        for s in etats:
+            if s in etats_terminaux:
+                continue  # Pas d'action dans les états terminaux
+                
+            old_action = policy[s]
+            
+            # Calculer Q-values pour toutes les actions valides
+            q_values = {}
+            actions_valides = [a for a in actions if np.sum(p[s, a]) > 0]
+            
+            for a in actions_valides:
+                q_val = 0.0
+                for s_next in etats:
+                    for r_idx in range(len(recompenses)):
+                        prob = p[s, a, s_next, r_idx]
+                        if prob > 0:
+                            reward = recompenses[r_idx]
+                            if s_next in etats_terminaux:
+                                q_val += prob * reward
+                            else:
+                                q_val += prob * (reward + gamma * V[s_next])
+                
+                q_values[a] = q_val
+            
+            # Choisir la meilleure action
+            if q_values:
+                best_action = max(q_values, key=q_values.get)
+                policy[s] = best_action
+                
+                if verbose:
+                    print(f"🧠 État {s} | 🔁 {old_action} → 🎮 {best_action}")
+                    for act, val in q_values.items():
+                        marker = "🏆" if act == best_action else "  "
+                        print(f"    {marker} Q({s},{act}) = {val:.4f}")
+                
+                if best_action != old_action:
+                    policy_stable = False
+        
+        if verbose:
+            print(f"✅ Politique stable : {policy_stable}")
+            
+        if policy_stable:
+            if verbose:
+                print(f"🎉 Convergence de la politique en {it+1} itérations !")
             break
-        iteration += 1
+    
+    # Créer DataFrame avec l'historique des valeurs
+    df_v = pd.DataFrame(historique_V).fillna(0)
+    
+    return policy, dict(V), df_v, historique_loss
 
-    return V
 
-##====================================== Polyci =============================================
+def value_iteration_dp(
+    etats,
+    actions,
+    p,
+    recompenses,
+    etats_terminaux,
+    gamma=0.99,
+    theta=0.00001,
+    max_iterations=100,
+    verbose=False
+):
+    # Initialisation des valeurs d'état
+    V = {s: 0.0 for s in etats}
+    historique_loss = []
+    historique_V = []
 
+    if verbose:
+        print(f"🧠 États : {etats}")
+        print(f"🎮 Actions : {actions}")
+        print(f"🏁 États terminaux : {etats_terminaux}")
+        print(f"🔄 Début de Value Iteration (Dynamic Programming)...")
+
+    for it in trange(max_iterations, desc="Value Iteration DP"):
+        delta = 0
+        V_new = V.copy()
+
+        for s in etats:
+            if s in etats_terminaux:
+                continue  # Les états terminaux restent à 0
+
+            v_old = V[s]
+            q_values = []
+
+            for a in actions:
+                q_val = 0.0
+                for s_next in etats:
+                    for r_idx in range(len(recompenses)):
+                        prob = p[s, a, s_next, r_idx]
+                        if prob > 0:
+                            r = recompenses[r_idx]
+                            if s_next in etats_terminaux:
+                                q_val += prob * r
+                            else:
+                                q_val += prob * (r + gamma * V[s_next])
+                q_values.append(q_val)
+
+            V_new[s] = max(q_values)
+            delta = max(delta, abs(v_old - V_new[s]))
+
+            if verbose:
+                print(f"🧠 État {s} | 📊 V: {v_old:.4f} → {V_new[s]:.4f}")
+
+        V = V_new
+        historique_loss.append(delta)
+        historique_V.append(dict(V))
+
+        if verbose:
+            print(f"📉 Delta max = {delta:.6f}")
+
+        if delta < theta:
+            if verbose:
+                print(f"✅ Convergence atteinte à l'itération {it+1}")
+            break
+
+    # Politique déterministe
+    policy = {}
+    for s in etats:
+        if s in etats_terminaux:
+            policy[s] = None
+            continue
+
+        best_a = None
+        best_q = -np.inf
+
+        for a in actions:
+            q_val = 0.0
+            for s_next in etats:
+                for r_idx in range(len(recompenses)):
+                    prob = p[s, a, s_next, r_idx]
+                    if prob > 0:
+                        r = recompenses[r_idx]
+                        if s_next in etats_terminaux:
+                            q_val += prob * r
+                        else:
+                            q_val += prob * (r + gamma * V[s_next])
+
+            if q_val > best_q:
+                best_q = q_val
+                best_a = a
+
+        policy[s] = best_a
+
+        if verbose:
+            print(f"🎮 Politique[{s}] = {best_a} avec Q = {best_q:.4f}")
+
+    df_v = pd.DataFrame(historique_V).fillna(0)
+
+    return policy, dict(V), df_v, historique_loss 

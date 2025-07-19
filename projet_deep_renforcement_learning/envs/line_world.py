@@ -38,5 +38,20 @@ def faire_un_pas(action):
                 return etat_suiv, recompense, termine
     return etat_actuel, 0.0, False  # fallback
 
+### pour monte carlo 
+
+def faire_un_pas_depuis(etat_depart, action):
+    for s_suiv in range(nb_etats):
+        for i_r in range(3):
+            if p[etat_depart, action, s_suiv, i_r] > 0:
+                recompense = recompenses[i_r]
+                termine = s_suiv in etats_terminaux
+                return s_suiv, recompense, termine
+    return etat_depart, 0.0, False
+
 def action_aléatoire():
     return np.random.choice(actions)
+
+# Obtenir toutes les actions possibles depuis un état
+def obtenir_actions(s):
+    return [a for a in actions if np.sum(p[s, a]) > 0]
