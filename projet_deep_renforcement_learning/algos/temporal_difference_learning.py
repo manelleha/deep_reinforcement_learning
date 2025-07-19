@@ -13,6 +13,9 @@ from collections import defaultdict
 import pandas as pd
 import matplotlib.pyplot as plt
 from tqdm import trange, tqdm
+import pickle
+import os
+
 
 #========================================================================
 # Politique ε-greedy 
