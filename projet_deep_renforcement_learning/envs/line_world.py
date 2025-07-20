@@ -6,19 +6,19 @@ actions = [0, 1]  # 0 = gauche, 1 = droite
 recompenses = [-1.0, 0.0, 1.0]
 etats_terminaux = [0, 4]
 
-# Transitions : état, action, état suivant, index de récompense
+
 p = np.zeros((5, 2, 5, 3))
 p[3, 0, 2, 1] = 1.0
 p[2, 0, 1, 1] = 1.0
 p[1, 0, 0, 0] = 1.0
-p[3, 1, 4, 2] = 1.0 # etat qui donne +1 
+p[3, 1, 4, 2] = 1.0
 p[2, 1, 3, 1] = 1.0
 p[1, 1, 2, 1] = 1.0
 
 nb_etats = len(etats)
 nb_actions = len(actions)
 
-# État global actuel de l'agent
+
 etat_actuel = len(etats) // 2
 
 def reinitialiser():
@@ -52,6 +52,6 @@ def faire_un_pas_depuis(etat_depart, action):
 def action_aléatoire():
     return np.random.choice(actions)
 
-# Obtenir toutes les actions possibles depuis un état
+
 def obtenir_actions(s):
     return [a for a in actions if np.sum(p[s, a]) > 0]

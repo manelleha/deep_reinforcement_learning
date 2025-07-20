@@ -17,6 +17,7 @@ import pickle
 import os
 
 
+
 #========================================================================
 # Politique ε-greedy 
 #========================================================================
@@ -33,7 +34,7 @@ def politique_epsilon_greedy(Q, état, actions, epsilon, verbose=False):
         if verbose:
             print(f"✅ Exploitation : meilleure action selon Q → {action}")
         return action
-
+    
 #========================================================================
 # Algo SARSA + Q-learning avec suivi, loss et stratégie
 #========================================================================
@@ -48,7 +49,9 @@ def sarsa_q_learning(
     etats_suivis=None,
     mode="sarsa",
     verbose=False
+   
 ):
+    
     Q = defaultdict(float)
     suivi_q = []
     historique_loss = []
@@ -102,6 +105,7 @@ def sarsa_q_learning(
                     td_error = cible - Q[(etat, action)]
                     loss = 0.5 * td_error**2
                     Q[(etat, action)] += alpha * td_error
+                    loss_episode.append(loss)
                     
                     # Transition pour le prochain pas
                     etat = etat_suiv
@@ -117,7 +121,7 @@ def sarsa_q_learning(
                     tqdm.write(f"📉 Loss      : {loss:.4f}")
                     tqdm.write("-" * 30)
                 
-                loss_episode.append(loss)
+                
 
         # Sauvegarder la loss moyenne de l'épisode
         if loss_episode:

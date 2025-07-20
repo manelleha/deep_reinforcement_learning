@@ -7,7 +7,7 @@ actions = [0, 1]  # 0 = gauche, 1 = droite
 recompenses = [-1.0, 0.0, 1.0]
 etats_terminaux = [0, 4]
 
-# Transitions sous forme de tenseur
+
 p = np.zeros((5, 2, 5, 3))
 p[3, 0, 2, 1] = 1.0
 p[2, 0, 1, 1] = 1.0
@@ -16,7 +16,7 @@ p[3, 1, 4, 2] = 1.0
 p[2, 1, 3, 1] = 1.0
 p[1, 1, 2, 1] = 1.0
 
-# Conversion en dictionnaire P[s][a] = [(prob, s', r, done), ...]
+
 P = defaultdict(lambda: defaultdict(list))
 actions_dict = {}
 
